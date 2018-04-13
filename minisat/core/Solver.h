@@ -118,6 +118,7 @@ public:
     void    toDimacs     (const char* file, Lit p);
     void    toDimacs     (const char* file, Lit p, Lit q);
     void    toDimacs     (const char* file, Lit p, Lit q, Lit r);
+    void    printVarsCls (void);
     
     // Variable mode:
     // 
@@ -419,8 +420,10 @@ inline CRef Solver::reason(Var x) const { return vardata[x].reason; }
 inline int  Solver::level (Var x) const { return vardata[x].level; }
 
 inline void Solver::insertVarOrder(Var x) {
-    Heap<VarOrderLt>& order_heap = glucose_restart ? order_heap_glue_r : order_heap_no_r;
-    if (!order_heap.inHeap(x) && decision[x]) order_heap.insert(x); }
+    //Heap<VarOrderLt>& order_heap = glucose_restart ? order_heap_glue_r : order_heap_no_r;
+    //if (!order_heap.inHeap(x) && decision[x]) order_heap.insert(x); }
+    if (!order_heap_glue_r.inHeap(x) && decision[x]) order_heap_glue_r.insert(x); // M. Piotrow 14.07.2017
+    if (!order_heap_no_r.inHeap(x) && decision[x]) order_heap_no_r.insert(x); }
 
 inline void Solver::varDecayActivity() {
     var_inc_glue_r *= (1 / var_decay_glue_r);
@@ -486,9 +489,9 @@ inline void     Solver::setDecisionVar(Var v, bool b)
     else if (!b &&  decision[v]) dec_vars--;
 
     decision[v] = b;
-    if (b && !order_heap_no_r.inHeap(v)){
-        order_heap_no_r.insert(v);
-        order_heap_glue_r.insert(v); }
+    if (b){
+        if (!order_heap_no_r.inHeap(v))   order_heap_no_r.insert(v);
+        if (!order_heap_glue_r.inHeap(v)) order_heap_glue_r.insert(v); }
 }
 inline void     Solver::setConfBudget(int64_t x){ conflict_budget    = conflicts    + x; }
 inline void     Solver::setPropBudget(int64_t x){ propagation_budget = propagations + x; }

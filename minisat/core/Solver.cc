@@ -754,7 +754,6 @@ void Solver::rebuildOrderHeap()
     for (Var v = 0; v < nVars(); v++)
         if (decision[v] && value(v) == l_Undef)
             vs.push(v);
-
     order_heap_no_r  .build(vs);
     order_heap_glue_r.build(vs);
 }
@@ -789,7 +788,8 @@ bool Solver::simplify(bool do_stamping)
         ok = stampAll(true);
 
     checkGarbage();
-    rebuildOrderHeap();
+    if ((int)dec_vars - nAssigns() < (glucose_restart ? order_heap_glue_r : order_heap_no_r).size() / 2) // M. Piotrow 20.07.2017
+        rebuildOrderHeap();
 
     simpDB_assigns = nAssigns();
     simpDB_props   = clauses_literals + learnts_literals;   // (shouldn't depend on stats really, but it will do for now)
@@ -998,7 +998,7 @@ lbool Solver::search(int& nof_conflicts)
                 restart = lbd_queue.full() && (lbd_queue.avg() * K > global_lbd_sum / conflicts_glue);
                 cached = true;
             }
-            if (restart /*|| !withinBudget()*/){
+            if (restart || !withinBudget()){
                 lbd_queue.clear();
                 // Reached bound on number of conflicts:
                 progress_estimate = progressEstimate();
@@ -1017,7 +1017,7 @@ lbool Solver::search(int& nof_conflicts)
                 reduceDB(); }
 
             Lit next = lit_Undef;
-            /*while (decisionLevel() < assumptions.size()){
+            while (decisionLevel() < assumptions.size()){
                 // Perform user provided assumption:
                 Lit p = assumptions[decisionLevel()];
                 if (value(p) == l_True){
@@ -1032,7 +1032,7 @@ lbool Solver::search(int& nof_conflicts)
                 }
             }
 
-            if (next == lit_Undef)*/{
+            if (next == lit_Undef){
                 // New variable decision:
                 decisions++;
                 next = pickBranchLit();
@@ -1106,18 +1106,13 @@ lbool Solver::solve_()
     learntsize_adjust_cnt     = (int)learntsize_adjust_confl;
     lbool   status            = l_Undef;
 
-    if (verbosity >= 1){
-        printf("c ============================[ Search Statistics ]==============================\n");
-        printf("c | Conflicts |          ORIGINAL         |          LEARNT          | Progress |\n");
-        printf("c |           |    Vars  Clauses Literals |    Limit  Clauses Lit/Cl |          |\n");
-        printf("c ===============================================================================\n");
-    }
+    if (verbosity >= 1)
+        printf("c ======================[ COMiniSatPS search starting  ]========================\n");
 
     add_tmp.clear();
-
     glucose_restart = true;
     int init = 10000;
-    while (status == l_Undef && init > 0 /*&& withinBudget()*/)
+    while (status == l_Undef && init > 0 && withinBudget())
        status = search(init);
     glucose_restart = false;
 
@@ -1127,18 +1122,15 @@ lbool Solver::solve_()
         int weighted = glucose_restart ? phase_allotment * 2 : phase_allotment;
         fflush(stdout);
 
-        while (status == l_Undef && weighted > 0 /*&& withinBudget()*/)
+        while (status == l_Undef && weighted > 0 && withinBudget())
             status = search(weighted);
-        if (status != l_Undef /*|| !withinBudget()*/)
+        if (status != l_Undef || !withinBudget())
             break; // Should break here for correctness in incremental SAT solving.
 
         glucose_restart = !glucose_restart;
         if (!glucose_restart)
             phase_allotment += phase_allotment / 10;
     }
-
-    if (verbosity >= 1)
-        printf("c ===============================================================================\n");
 
 #ifdef BIN_DRUP
     if (drup_file && status == l_False) binDRUP_flush(drup_file);
@@ -1232,6 +1224,28 @@ void Solver::toDimacs(FILE* f, const vec<Lit>& assumps)
         printf("c Wrote %d clauses with %d variables.\n", cnt, max);
 }
 
+void Solver::printVarsCls(void)
+{
+    vec<Var> map; Var max=0;
+    int cnt;
+    
+    if (!ok) max=1, cnt=2;
+    else {
+        cnt = assumptions.size();
+        for (int i = 0; i < clauses.size(); i++)
+            if (!satisfied(ca[clauses[i]])){
+                cnt++;
+                Clause& c = ca[clauses[i]];
+                for (int j = 0; j < c.size(); j++)
+                    if (value(c[j]) != l_False)
+                        mapVar(var(c[j]), map, max);
+            }
+    }
+    printf("c ============================[ Encoding Statistics ]============================\n");
+    printf("c |  Number of variables:  %12d                                         |\n", max);
+    printf("c |  Number of clauses:    %12d                                         |\n", cnt);
+    printf("c ===============================================================================\n");
+}
 
 //=================================================================================================
 // Garbage Collection methods:

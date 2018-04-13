@@ -93,3 +93,55 @@ double Minisat::memUsed(void) {
 double Minisat::memUsed() { 
     return 0; }
 #endif
+
+#if !defined(_MSC_VER) && !defined(__MINGW32__)
+void Minisat::limitMemory(uint64_t max_mem_mb)
+{
+// FIXME: OpenBSD does not support RLIMIT_AS. Not sure how well RLIMIT_DATA works instead.
+#if defined(__OpenBSD__)
+#define RLIMIT_AS RLIMIT_DATA
+#endif
+
+    // Set limit on virtual memory:
+    if (max_mem_mb != 0){
+        rlim_t new_mem_lim = (rlim_t)max_mem_mb * 1024*1024;
+        rlimit rl;
+        getrlimit(RLIMIT_AS, &rl);
+        if (rl.rlim_max == RLIM_INFINITY || new_mem_lim < rl.rlim_max){
+            rl.rlim_cur = new_mem_lim;
+            if (setrlimit(RLIMIT_AS, &rl) == -1)
+                printf("WARNING! Could not set resource limit: Virtual memory.\n");
+        }
+    }
+
+#if defined(__OpenBSD__)
+#undef RLIMIT_AS
+#endif
+}
+#else
+void Minisat::limitMemory(uint64_t /*max_mem_mb*/)
+{
+    printf("WARNING! Memory limit not supported on this architecture.\n");
+}
+#endif
+
+
+#if !defined(_MSC_VER) && !defined(__MINGW32__)
+void Minisat::limitTime(uint32_t max_cpu_time)
+{
+    if (max_cpu_time != 0){
+        rlimit rl;
+        getrlimit(RLIMIT_CPU, &rl);
+        if (rl.rlim_max == RLIM_INFINITY || (rlim_t)max_cpu_time < rl.rlim_max){
+            rl.rlim_cur = max_cpu_time;
+            if (setrlimit(RLIMIT_CPU, &rl) == -1)
+                printf("WARNING! Could not set resource limit: CPU-time.\n");
+        }
+    }
+}
+#else
+void Minisat::limitTime(uint32_t /*max_cpu_time*/)
+{
+    printf("WARNING! CPU-time limit not supported on this architecture.\n");
+}
+#endif
