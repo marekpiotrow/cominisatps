@@ -420,10 +420,8 @@ inline CRef Solver::reason(Var x) const { return vardata[x].reason; }
 inline int  Solver::level (Var x) const { return vardata[x].level; }
 
 inline void Solver::insertVarOrder(Var x) {
-    //Heap<VarOrderLt>& order_heap = glucose_restart ? order_heap_glue_r : order_heap_no_r;
-    //if (!order_heap.inHeap(x) && decision[x]) order_heap.insert(x); }
-    if (!order_heap_glue_r.inHeap(x) && decision[x]) order_heap_glue_r.insert(x); // M. Piotrow 14.07.2017
-    if (!order_heap_no_r.inHeap(x) && decision[x]) order_heap_no_r.insert(x); }
+    Heap<VarOrderLt>& order_heap = glucose_restart ? order_heap_glue_r : order_heap_no_r;
+    if (!order_heap.inHeap(x) && decision[x]) order_heap.insert(x); }
 
 inline void Solver::varDecayActivity() {
     var_inc_glue_r *= (1 / var_decay_glue_r);
