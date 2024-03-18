@@ -23,7 +23,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #ifndef Minisat_Solver_h
 #define Minisat_Solver_h
 
-#define BIN_DRUP
+//#define BIN_DRUP
 
 #define GLUCOSE23
 //#define EXTRA_VAR_ACT_BUMP
@@ -48,7 +48,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #define TIER2 2
 #define CORE  3
 
-namespace Minisat {
+namespace COMinisatPS {
 
 //=================================================================================================
 // Solver -- the main class:
@@ -118,7 +118,6 @@ public:
     void    toDimacs     (const char* file, Lit p);
     void    toDimacs     (const char* file, Lit p, Lit q);
     void    toDimacs     (const char* file, Lit p, Lit q, Lit r);
-    void    printVarsCls (void);
     
     // Variable mode:
     // 
@@ -144,6 +143,10 @@ public:
     void    budgetOff();
     void    interrupt();          // Trigger a (potentially asynchronous) interruption of the solver.
     void    clearInterrupt();     // Clear interrupt indicator flag.
+    // IPASIR:
+    //
+    inline void setTermCallback(void *state, int (*termCallback)(void *));
+
 
     // Memory managment:
     //
@@ -229,6 +232,7 @@ protected:
     OccLists<Lit, vec<Watcher>, WatcherDeleted>
                         watches_bin,      // Watches for binary clauses only.
                         watches;          // 'watches[lit]' is a list of constraints watching 'lit' (will go there if literal becomes true).
+    vec<bool>           assump;           // Declares if a variable is an assumption variable or not.
     vec<lbool>          assigns;          // The current assignments.
     vec<char>           polarity;         // The preferred polarity of each variable.
     vec<char>           decision;         // Declares if a variable is eligible for selection in the decision heuristic.
@@ -275,6 +279,10 @@ protected:
     int64_t             propagation_budget; // -1 means no budget.
     bool                asynch_interrupt;
 
+    // IPASIR data
+    void *termCallbackState;
+    int (*termCallback)(void *state);
+
     // Main internal methods:
     //
     void     insertVarOrder   (Var x);                                                 // Insert a variable in the decision order priority queue.
@@ -285,7 +293,7 @@ protected:
     CRef     propagate        ();                                                      // Perform unit propagation. Returns possibly conflicting clause.
     void     cancelUntil      (int level);                                             // Backtrack until a certain level.
     void     analyze          (CRef confl, vec<Lit>& out_learnt, int& out_btlevel, int& out_lbd);    // (bt = backtrack)
-    void     analyzeFinal     (Lit p, vec<Lit>& out_conflict);                         // COULD THIS BE IMPLEMENTED BY THE ORDINARIY "analyze" BY SOME REASONABLE GENERALIZATION?
+    void     analyzeFinal(CRef confl, vec<Lit>& out_conflict);
     bool     litRedundant     (Lit p, uint32_t abstract_levels);                       // (helper method for 'analyze()')
     lbool    search           (int& nof_conflicts);                                    // Search for a given number of conflicts.
     lbool    solve_           ();                                                      // Main solve method (assumptions given in 'assumptions').
@@ -322,6 +330,7 @@ protected:
     int      level            (Var x) const;
     double   progressEstimate ()      const; // DELETE THIS ?? IT'S NOT VERY USEFUL ...
     bool     withinBudget     ()      const;
+
 
     template<class V> int computeLBD(const V& c) {
         int lbd = 0;
@@ -487,9 +496,9 @@ inline void     Solver::setDecisionVar(Var v, bool b)
     else if (!b &&  decision[v]) dec_vars--;
 
     decision[v] = b;
-    if (b){
-        if (!order_heap_no_r.inHeap(v))   order_heap_no_r.insert(v);
-        if (!order_heap_glue_r.inHeap(v)) order_heap_glue_r.insert(v); }
+    if (b && !order_heap_no_r.inHeap(v)){
+        order_heap_no_r.insert(v);
+        order_heap_glue_r.insert(v); }
 }
 inline void     Solver::setConfBudget(int64_t x){ conflict_budget    = conflicts    + x; }
 inline void     Solver::setPropBudget(int64_t x){ propagation_budget = propagations + x; }
@@ -499,7 +508,8 @@ inline void     Solver::budgetOff(){ conflict_budget = propagation_budget = -1; 
 inline bool     Solver::withinBudget() const {
     return !asynch_interrupt &&
            (conflict_budget    < 0 || conflicts < (uint64_t)conflict_budget) &&
-           (propagation_budget < 0 || propagations < (uint64_t)propagation_budget); }
+           (propagation_budget < 0 || propagations < (uint64_t)propagation_budget) &&
+           (termCallback == 0 || 0 == termCallback(termCallbackState)); }
 
 // FIXME: after the introduction of asynchronous interrruptions the solve-versions that return a
 // pure bool do not give a safe interface. Either interrupts must be possible to turn off here, or
@@ -516,7 +526,9 @@ inline void     Solver::toDimacs     (const char* file){ vec<Lit> as; toDimacs(f
 inline void     Solver::toDimacs     (const char* file, Lit p){ vec<Lit> as; as.push(p); toDimacs(file, as); }
 inline void     Solver::toDimacs     (const char* file, Lit p, Lit q){ vec<Lit> as; as.push(p); as.push(q); toDimacs(file, as); }
 inline void     Solver::toDimacs     (const char* file, Lit p, Lit q, Lit r){ vec<Lit> as; as.push(p); as.push(q); as.push(r); toDimacs(file, as); }
-
+// IPASIR
+void Solver::setTermCallback(void *state, int (*termcallback)(void *)) {
+    termCallbackState = state; termCallback = termcallback; }
 
 //=================================================================================================
 // Debug etc:

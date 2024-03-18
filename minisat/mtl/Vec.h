@@ -27,7 +27,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include "mtl/IntTypes.h"
 #include "mtl/XAlloc.h"
 
-namespace Minisat {
+namespace COMinisatPS {
 
 //=================================================================================================
 // Automatically resizable arrays
@@ -41,8 +41,8 @@ class vec {
     int cap;
 
     // Don't allow copying (error prone):
-    vec<T>&  operator = (vec<T>& other) { assert(0); return *this; }
-             vec        (vec<T>& other) { assert(0); }
+    vec<T>&  operator = (vec<T>& ) { assert(0); return *this; }
+             vec        (vec<T>& ) { assert(0); }
              
     // Helpers for calculating next capacity:
     static inline int  imax   (int x, int y) { int mask = (y-x) >> (sizeof(int)*8-1); return (x&mask) + (y&(~mask)); }

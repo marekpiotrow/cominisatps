@@ -18,14 +18,16 @@ DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 **************************************************************************************************/
 
+#include <signal.h>
+#include <stdio.h>
+
 #include "utils/System.h"
 
 #if defined(__linux__)
 
-#include <stdio.h>
 #include <stdlib.h>
 
-using namespace Minisat;
+using namespace COMinisatPS;
 
 // TODO: split the memory reading functions into two: one for reading high-watermark of RSS, and
 // one for reading the current virtual memory size.
@@ -67,14 +69,14 @@ static inline int memReadPeak(void)
     return peak_kb;
 }
 
-double Minisat::memUsed() { return (double)memReadStat(0) * (double)getpagesize() / (1024*1024); }
-double Minisat::memUsedPeak() { 
+double COMinisatPS::memUsed() { return (double)memReadStat(0) * (double)getpagesize() / (1024*1024); }
+double COMinisatPS::memUsedPeak() { 
     double peak = memReadPeak() / 1024;
     return peak == 0 ? memUsed() : peak; }
 
 #elif defined(__FreeBSD__)
 
-double Minisat::memUsed(void) {
+double COMinisatPS::memUsed(void) {
     struct rusage ru;
     getrusage(RUSAGE_SELF, &ru);
     return (double)ru.ru_maxrss / 1024; }
@@ -84,18 +86,21 @@ double MiniSat::memUsedPeak(void) { return memUsed(); }
 #elif defined(__APPLE__)
 #include <malloc/malloc.h>
 
-double Minisat::memUsed(void) {
+double COMinisatPS::memUsed(void) {
     malloc_statistics_t t;
     malloc_zone_statistics(NULL, &t);
     return (double)t.max_size_in_use / (1024*1024); }
+double MiniSat::memUsedPeak(void) { return memUsed(); }
 
 #else
-double Minisat::memUsed() { 
+double COMinisatPS::memUsed() { 
+    return 0; }
+double COMinisatPS::memUsedPeak() { 
     return 0; }
 #endif
 
 #if !defined(_MSC_VER) && !defined(__MINGW32__)
-void Minisat::limitMemory(uint64_t max_mem_mb)
+void COMinisatPS::limitMemory(uint64_t max_mem_mb)
 {
 // FIXME: OpenBSD does not support RLIMIT_AS. Not sure how well RLIMIT_DATA works instead.
 #if defined(__OpenBSD__)
@@ -119,7 +124,7 @@ void Minisat::limitMemory(uint64_t max_mem_mb)
 #endif
 }
 #else
-void Minisat::limitMemory(uint64_t /*max_mem_mb*/)
+void COMinisatPS::limitMemory(uint64_t /*max_mem_mb*/)
 {
     printf("WARNING! Memory limit not supported on this architecture.\n");
 }
@@ -127,7 +132,7 @@ void Minisat::limitMemory(uint64_t /*max_mem_mb*/)
 
 
 #if !defined(_MSC_VER) && !defined(__MINGW32__)
-void Minisat::limitTime(uint32_t max_cpu_time)
+void COMinisatPS::limitTime(uint32_t max_cpu_time)
 {
     if (max_cpu_time != 0){
         rlimit rl;
@@ -140,8 +145,18 @@ void Minisat::limitTime(uint32_t max_cpu_time)
     }
 }
 #else
-void Minisat::limitTime(uint32_t /*max_cpu_time*/)
+void COMinisatPS::limitTime(uint32_t /*max_cpu_time*/)
 {
     printf("WARNING! CPU-time limit not supported on this architecture.\n");
 }
 #endif
+
+
+void COMinisatPS::sigTerm(void handler(int))
+{
+    signal(SIGINT, handler);
+    signal(SIGTERM,handler);
+#ifdef SIGXCPU
+    signal(SIGXCPU,handler);
+#endif
+}

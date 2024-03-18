@@ -25,7 +25,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include "mtl/Sort.h"
 #include "core/Solver.h"
 
-using namespace Minisat;
+using namespace COMinisatPS;
 
 #ifdef BIN_DRUP
 int Solver::buf_len = 0;
@@ -117,6 +117,8 @@ Solver::Solver() :
   , conflict_budget    (-1)
   , propagation_budget (-1)
   , asynch_interrupt   (false)
+  , termCallbackState  (nullptr)
+  , termCallback       (nullptr)
 {}
 
 
@@ -150,6 +152,7 @@ Var Solver::newVar(bool sign, bool dvar)
     trail    .capacity(v+1);
     setDecisionVar(v, dvar);
 
+    assump.push(false);
     // Additional space needed for stamping.
     // TODO: allocate exact memory.
     seen      .push(0);
@@ -550,16 +553,20 @@ bool Solver::litRedundant(Lit p, uint32_t abstract_levels)
 |    Specialized analysis procedure to express the final conflict in terms of assumptions.
 |    Calculates the (possibly empty) set of assumptions that led to the assignment of 'p', and
 |    stores the result in 'out_conflict'.
+|
+|  void Solver::analyzeFinal(Lit p, vec<Lit>& out_conflict)
 |________________________________________________________________________________________________@*/
-void Solver::analyzeFinal(Lit p, vec<Lit>& out_conflict)
+void Solver::analyzeFinal(CRef confl, vec<Lit>& out_conflict)
 {
     out_conflict.clear();
-    out_conflict.push(p);
 
     if (decisionLevel() == 0)
         return;
 
-    seen[var(p)] = 1;
+    Clause& cl = ca[confl];
+    for (int j = 0; j < cl.size(); j++)
+        if (level(var(cl[j])) > 0)
+            seen[var(cl[j])] = 1;
 
     for (int i = trail.size()-1; i >= trail_lim[0]; i--){
         Var x = var(trail[i]);
@@ -577,7 +584,9 @@ void Solver::analyzeFinal(Lit p, vec<Lit>& out_conflict)
         }
     }
 
-    seen[var(p)] = 0;
+    for (int j = cl.size() == 2 ? 0 : 1; j < cl.size(); j++)
+        if (level(var(cl[j])) > 0)
+            seen[var(cl[j])] = 0;
 }
 
 
@@ -650,12 +659,22 @@ CRef Solver::propagate()
                 *j++ = w; continue; }
 
             // Look for new watch:
+            int choosenPos = -1, maxAssumpLevel = assumptions.size() > 0 ? 1 : 0;
             for (int k = 2; k < c.size(); k++)
                 if (value(c[k]) != l_False){
-                    c[1] = c[k]; c[k] = false_lit;
-                    watches[~c[1]].push(w);
-                    goto NextClause; }
-
+                    choosenPos = k;
+                    if(decisionLevel()>maxAssumpLevel || value(c[k])==l_True || !assump[var(c[k])]) 
+                        break; }
+            if(choosenPos!=-1) {
+                c[1] = c[choosenPos]; c[choosenPos] = false_lit;
+                watches[~c[1]].push(w);
+                goto NextClause; }
+             /*   for (int k = 2; k < c.size(); k++)
+                    if (value(c[k]) != l_False){
+                        c[1] = c[k]; c[k] = false_lit;
+                        watches[~c[1]].push(w);
+                        goto NextClause; }
+*/
             // Did not find watch -- clause is unit under assignment:
             *j++ = w;
             if (value(first) == l_False){
@@ -672,7 +691,7 @@ CRef Solver::propagate()
         ws.shrink(i - j);
     }
 
-ExitProp:;
+//ExitProp:;
     propagations += num_props;
     simpDB_props -= num_props;
 
@@ -754,6 +773,7 @@ void Solver::rebuildOrderHeap()
     for (Var v = 0; v < nVars(); v++)
         if (decision[v] && value(v) == l_Undef)
             vs.push(v);
+
     order_heap_no_r  .build(vs);
     order_heap_glue_r.build(vs);
 }
@@ -933,6 +953,7 @@ lbool Solver::search(int& nof_conflicts)
             conflicts++; nof_conflicts--;
             if (conflicts == 100000 && learnts_core.size() < 100) core_lbd_cut = 5;
             if (decisionLevel() == 0) return l_False;
+            if (decisionLevel() == 1) { analyzeFinal(confl, conflict); return l_False; }
 
             learnt_clause.clear();
             analyze(confl, learnt_clause, backtrack_level, lbd);
@@ -1017,19 +1038,15 @@ lbool Solver::search(int& nof_conflicts)
                 reduceDB(); }
 
             Lit next = lit_Undef;
-            while (decisionLevel() < assumptions.size()){
-                // Perform user provided assumption:
-                Lit p = assumptions[decisionLevel()];
-                if (value(p) == l_True){
-                    // Dummy decision level:
-                    newDecisionLevel();
-                }else if (value(p) == l_False){
-                    analyzeFinal(~p, conflict);
-                    return l_False;
-                }else{
-                    next = p;
-                    break;
+
+            if (decisionLevel() == 0) {
+                newDecisionLevel();
+                for (int i = 0; i < assumptions.size(); i++) {
+                    Lit p = assumptions[i];
+                    if (value(p) == l_False) { conflict.push(~p); return l_False; }
+                    else if (value(p) != l_True) uncheckedEnqueue(p);
                 }
+                continue;
             }
 
             if (next == lit_Undef){
@@ -1073,9 +1090,6 @@ double Solver::progressEstimate() const
   3: 1 1 2 1 1 2 4 1 1 2 1 1 2 4 8
   ...
 
-
- */
-
 static double luby(double y, int x){
 
     // Find the finite subsequence that contains index 'x', and the
@@ -1092,6 +1106,9 @@ static double luby(double y, int x){
     return pow(y, seq);
 }
 
+
+ */
+
 // NOTE: assumptions passed in member-variable 'assumptions'.
 lbool Solver::solve_()
 {
@@ -1100,6 +1117,9 @@ lbool Solver::solve_()
     if (!ok) return l_False;
 
     solves++;
+
+    for (int i = 0; i <assumptions.size(); i++)
+        assump[var(assumptions[i])] = true;
 
     max_learnts               = nClauses() * learntsize_factor;
     learntsize_adjust_confl   = learntsize_adjust_start_confl;
@@ -1114,7 +1134,7 @@ lbool Solver::solve_()
     int init = 10000;
     while (status == l_Undef && init > 0 && withinBudget())
        status = search(init);
-    if (status == l_Undef) glucose_restart = false;
+    if (status == l_Undef && withinBudget()) glucose_restart = false;
 
     // Search:
     int phase_allotment = 100;
@@ -1183,7 +1203,7 @@ void Solver::toDimacs(const char *file, const vec<Lit>& assumps)
 }
 
 
-void Solver::toDimacs(FILE* f, const vec<Lit>& assumps)
+void Solver::toDimacs(FILE* f, const vec<Lit>& /*assumps*/)
 {
     // Handle case when solver is in contradictory state:
     if (!ok){
@@ -1224,28 +1244,6 @@ void Solver::toDimacs(FILE* f, const vec<Lit>& assumps)
         printf("c Wrote %d clauses with %d variables.\n", cnt, max);
 }
 
-void Solver::printVarsCls(void)
-{
-    vec<Var> map; Var max=0;
-    int cnt;
-    
-    if (!ok) max=1, cnt=2;
-    else {
-        cnt = assumptions.size();
-        for (int i = 0; i < clauses.size(); i++)
-            if (!satisfied(ca[clauses[i]])){
-                cnt++;
-                Clause& c = ca[clauses[i]];
-                for (int j = 0; j < c.size(); j++)
-                    if (value(c[j]) != l_False)
-                        mapVar(var(c[j]), map, max);
-            }
-    }
-    printf("c ============================[ Encoding Statistics ]============================\n");
-    printf("c |  Number of variables:  %12d                                         |\n", max);
-    printf("c |  Number of clauses:    %12d                                         |\n", cnt);
-    printf("c ===============================================================================\n");
-}
 
 //=================================================================================================
 // Garbage Collection methods:
@@ -1358,7 +1356,7 @@ bool Solver::stampAll(bool use_bin_learnts)
     return true;
 }
 
-int Solver::stamp(Lit p, int stamp_time, bool use_bin_learnts)
+int Solver::stamp(Lit p, int stamp_time, bool /*use_bin_learnts*/)
 {
     assert(value(p) == l_Undef && !discovered[toInt(p)] && !finished[toInt(p)]);
     assert(rec_stack.size() == 0 && scc.size() == 0);

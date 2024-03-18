@@ -29,17 +29,17 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 
 //-------------------------------------------------------------------------------------------------
 
-namespace Minisat {
+namespace COMinisatPS {
 
 static inline double cpuTime(void); // CPU-time in seconds.
 extern double memUsed();            // Memory in mega bytes (returns 0 for unsupported architectures).
 extern double memUsedPeak();        // Peak-memory in mega bytes (returns 0 for unsupported architectures).
-
 extern void   limitMemory(uint64_t max_mem_mb); // Set a limit on total memory usage. The exact
                                                 // semantics varies depending on architecture.
-
 extern void   limitTime(uint32_t max_cpu_time); // Set a limit on maximum CPU time. The exact
                                                 // semantics varies depending on architecture.
+extern void   sigTerm(void handler(int));      // Set up handling of available termination signals.
+
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -48,14 +48,14 @@ extern void   limitTime(uint32_t max_cpu_time); // Set a limit on maximum CPU ti
 #if defined(_MSC_VER) || defined(__MINGW32__)
 #include <time.h>
 
-static inline double Minisat::cpuTime(void) { return (double)clock() / CLOCKS_PER_SEC; }
+static inline double COMinisatPS::cpuTime(void) { return (double)clock() / CLOCKS_PER_SEC; }
 
 #else
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <unistd.h>
 
-static inline double Minisat::cpuTime(void) {
+static inline double COMinisatPS::cpuTime(void) {
     struct rusage ru;
     getrusage(RUSAGE_SELF, &ru);
     return (double)ru.ru_utime.tv_sec + (double)ru.ru_utime.tv_usec / 1000000; }

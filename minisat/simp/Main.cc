@@ -24,7 +24,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 
 #include <signal.h>
 #include <zlib.h>
-#include <sys/resource.h>
+//#include <sys/resource.h>
 
 #include "utils/System.h"
 #include "utils/ParseUtils.h"
@@ -32,7 +32,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include "core/Dimacs.h"
 #include "simp/SimpSolver.h"
 
-using namespace Minisat;
+using namespace COMinisatPS;
 
 //=================================================================================================
 
@@ -41,11 +41,11 @@ void printStats(Solver& solver)
 {
     double cpu_time = cpuTime();
     double mem_used = memUsedPeak();
-    printf("c restarts              : %"PRIu64"\n", solver.starts);
-    printf("c conflicts             : %-12"PRIu64"   (%.0f /sec)\n", solver.conflicts   , solver.conflicts   /cpu_time);
-    printf("c decisions             : %-12"PRIu64"   (%4.2f %% random) (%.0f /sec)\n", solver.decisions, (float)solver.rnd_decisions*100 / (float)solver.decisions, solver.decisions   /cpu_time);
-    printf("c propagations          : %-12"PRIu64"   (%.0f /sec)\n", solver.propagations, solver.propagations/cpu_time);
-    printf("c conflict literals     : %-12"PRIu64"   (%4.2f %% deleted)\n", solver.tot_literals, (solver.max_literals - solver.tot_literals)*100 / (double)solver.max_literals);
+    printf("c restarts              : %" PRIu64"\n", solver.starts);
+    printf("c conflicts             : %-12" PRIu64"   (%.0f /sec)\n", solver.conflicts   , solver.conflicts   /cpu_time);
+    printf("c decisions             : %-12" PRIu64"   (%4.2f %% random) (%.0f /sec)\n", solver.decisions, (float)solver.rnd_decisions*100 / (float)solver.decisions, solver.decisions   /cpu_time);
+    printf("c propagations          : %-12" PRIu64"   (%.0f /sec)\n", solver.propagations, solver.propagations/cpu_time);
+    printf("c conflict literals     : %-12" PRIu64"   (%4.2f %% deleted)\n", solver.tot_literals, (solver.max_literals - solver.tot_literals)*100 / (double)solver.max_literals);
     if (mem_used != 0) printf("c Memory used           : %.2f MB\n", mem_used);
     printf("c CPU time              : %g s\n", cpu_time);
 }
@@ -111,30 +111,12 @@ int main(int argc, char** argv)
         solver = &S;
         // Use signal handlers that forcibly quit until the solver will be able to respond to
         // interrupts:
-        signal(SIGINT, SIGINT_exit);
-        signal(SIGXCPU,SIGINT_exit);
+        sigTerm(SIGINT_exit);
 
-        // Set limit on CPU-time:
-        if (cpu_lim != INT32_MAX){
-            rlimit rl;
-            getrlimit(RLIMIT_CPU, &rl);
-            if (rl.rlim_max == RLIM_INFINITY || (rlim_t)cpu_lim < rl.rlim_max){
-                rl.rlim_cur = cpu_lim;
-                if (setrlimit(RLIMIT_CPU, &rl) == -1)
-                    printf("c WARNING! Could not set resource limit: CPU-time.\n");
-            } }
+        // Try to set resource limits:
+        if (cpu_lim != INT32_MAX) limitTime(cpu_lim);
+        if (mem_lim != INT32_MAX) limitMemory(mem_lim);
 
-        // Set limit on virtual memory:
-        if (mem_lim != INT32_MAX){
-            rlim_t new_mem_lim = (rlim_t)mem_lim * 1024*1024;
-            rlimit rl;
-            getrlimit(RLIMIT_AS, &rl);
-            if (rl.rlim_max == RLIM_INFINITY || new_mem_lim < rl.rlim_max){
-                rl.rlim_cur = new_mem_lim;
-                if (setrlimit(RLIMIT_AS, &rl) == -1)
-                    printf("c WARNING! Could not set resource limit: Virtual memory.\n");
-            } }
-        
         if (argc == 1)
             printf("c Reading from standard input... Use '--help' for help.\n");
 
@@ -160,8 +142,7 @@ int main(int argc, char** argv)
 
         // Change to signal-handlers that will only notify the solver and allow it to terminate
         // voluntarily:
-        signal(SIGINT, SIGINT_interrupt);
-        signal(SIGXCPU,SIGINT_interrupt);
+        sigTerm(SIGINT_interrupt);
 
         S.parsing = false;
         S.eliminate(true);

@@ -23,7 +23,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include "mtl/IntTypes.h"
 #include "mtl/Vec.h"
 
-namespace Minisat {
+namespace COMinisatPS {
 
 //=================================================================================================
 // Default hash/equals functions
@@ -66,8 +66,8 @@ class Map {
     int        size;
 
     // Don't allow copying (error prone):
-    Map<K,D,H,E>&  operator = (Map<K,D,H,E>& other) { assert(0); }
-                   Map        (Map<K,D,H,E>& other) { assert(0); }
+    Map<K,D,H,E>&  operator = (Map<K,D,H,E>& ) { assert(0); }
+                   Map        (Map<K,D,H,E>& ) { assert(0); }
 
     bool    checkCap(int new_size) const { return new_size > cap; }
 

@@ -14,7 +14,7 @@ all:	r lr lsh
 BUILD_DIR      ?= build
 
 # Include debug-symbols in release builds
-MINISAT_RELSYM ?= -g
+MINISAT_RELSYM ?=
 
 # Sets of compile flags for different build types
 MINISAT_REL    ?= -O3 -D NDEBUG
@@ -49,8 +49,8 @@ datarootdir ?= $(prefix)/share
 mandir      ?= $(datarootdir)/man
 
 # Target file names
-MINISAT      = minisat#       Name of MiniSat main executable.
-MINISAT_CORE = minisat_core#  Name of simplified MiniSat executable (only core solver support).
+MINISAT      = cominisatps#       Name of MiniSat main executable.
+MINISAT_CORE = cominisatps_core#  Name of simplified MiniSat executable (only core solver support).
 MINISAT_SLIB = lib$(MINISAT).a#  Name of MiniSat static library.
 MINISAT_DLIB = lib$(MINISAT).so# Name of MiniSat shared library.
 

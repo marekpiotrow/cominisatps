@@ -24,7 +24,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include "simp/SimpSolver.h"
 #include "utils/System.h"
 
-using namespace Minisat;
+using namespace COMinisatPS;
 
 //=================================================================================================
 // Options:
@@ -630,12 +630,13 @@ void SimpSolver::removeSatisfied()
 
 // The technique and code are by the courtesy of the GlueMiniSat team. Thank you!
 // It helps solving certain types of huge problems tremendously.
-bool SimpSolver::eliminate(bool turn_off_elim)
+bool SimpSolver::eliminate(bool /*turn_off_elim*/)
 {
     bool res = true;
     int iter = 0;
     int n_cls, n_cls_init, n_vars;
 
+    printf("c Using COMiniSatPS SAT solver by Chanseok Oh (2016)\n");
     if (nVars() == 0) goto cleanup; // User disabling preprocessing.
 
     // Get an initial number of clauses (more accurately).
@@ -648,10 +649,10 @@ bool SimpSolver::eliminate(bool turn_off_elim)
     n_cls  = nClauses();
     n_vars = nFreeVars();
 
-    printf("c Reduced to %d vars, %d cls (grow=%d)\n", n_vars, n_cls, grow);
+    if (verbosity >= 1) printf("c COMiniSatPS: Reduced to %d vars, %d cls (grow=%d)\n", n_vars, n_cls, grow);
 
     if ((double)n_cls / n_vars >= 10 || n_vars < 10000){
-        printf("c No iterative elimination performed. (vars=%d, c/v ratio=%.1f)\n", n_vars, (double)n_cls / n_vars);
+        if (verbosity >= 1) printf("c COMiniSatPS: No iterative elimination performed. (vars=%d, c/v ratio=%.1f)\n", n_vars, (double)n_cls / n_vars);
         goto cleanup; }
 
     grow = grow ? grow * 2 : 8;
@@ -678,12 +679,12 @@ bool SimpSolver::eliminate(bool turn_off_elim)
         double cl_inc_rate  = (double)n_cls_now   / n_cls_last;
         double var_dec_rate = (double)n_vars_last / n_vars_now;
 
-        printf("c Reduced to %d vars, %d cls (grow=%d)\n", n_vars_now, n_cls_now, grow);
-        printf("c cl_inc_rate=%.3f, var_dec_rate=%.3f\n", cl_inc_rate, var_dec_rate);
+        if (verbosity >= 1) printf("c COMiniSatPS: Reduced to %d vars, %d cls (grow=%d)\n", n_vars_now, n_cls_now, grow);
+        if (verbosity >= 1) printf("c COMiniSatPS: cl_inc_rate=%.3f, var_dec_rate=%.3f\n", cl_inc_rate, var_dec_rate);
 
         if (n_cls_now > n_cls_init || cl_inc_rate > var_dec_rate) break;
     }
-    printf("c No. effective iterative eliminations: %d\n", iter);
+    if (verbosity >= 1) printf("c COMiniSatPS: No. effective iterative eliminations: %d\n", iter);
 
 cleanup:
     touched  .clear(true);
