@@ -636,7 +636,7 @@ bool SimpSolver::eliminate(bool /*turn_off_elim*/)
     int iter = 0;
     int n_cls, n_cls_init, n_vars;
 
-    printf("c Using COMiniSatPS SAT solver by Chanseok Oh (2016)\n");
+    // printf("c Using COMiniSatPS SAT solver by Chanseok Oh (2016)\n");
     if (nVars() == 0) goto cleanup; // User disabling preprocessing.
 
     // Get an initial number of clauses (more accurately).
