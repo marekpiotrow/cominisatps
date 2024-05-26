@@ -38,7 +38,7 @@ static inline int memReadStat(int field)
     pid_t pid = getpid();
     int   value;
 
-    snprintf(name sizeof(name), "/proc/%d/statm", pid);
+    snprintf(name, sizeof(name), "/proc/%d/statm", pid);
     FILE* in = fopen(name, "rb");
     if (in == NULL) return 0;
 
